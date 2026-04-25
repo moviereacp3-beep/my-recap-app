@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Recap Maker - Secure Mode</title>
+    
+    <style>
+        :root {
+            --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #e2e8f0;
+            --text-muted: #94a3b8; --accent: #f43f5e; --border: #334155;
+            --danger: #ef4444; --success: #22c55e;
+        }
+        body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 15px; overscroll-behavior: none; }
+        .container { max-width: 600px; margin: 0 auto; padding-bottom: 80px; }
+        h2 { text-align: center; color: var(--accent); letter-spacing: 2px; margin-bottom: 5px; font-weight: 900; text-transform: uppercase; }
+        .user-badge { text-align: center; color: var(--text-muted); font-size: 12px; margin-bottom: 20px; display: block; }
+        .card { background: var(--card-bg); border-radius: 16px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+        .card-title { font-size: 14px; font-weight: bold; color: var(--text-muted); margin-bottom: 10px; display: block; text-transform: uppercase; }
+        input[type="text"], textarea, select { width: 100%; padding: 14px; background: #020617; border: 1px solid var(--border); border-radius: 10px; color: white; font-size: 16px; outline: none; box-sizing: border-box; margin-bottom: 10px; }
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; text-decoration: none; transition: 0.2s;}
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-success { background: var(--success); color: #000; }
+        .btn-outline { background: transparent; border: 2px solid var(--border); color: var(--text-muted); }
+        .btn-outline.active { border-color: var(--accent); color: var(--accent); background: rgba(244, 63, 94, 0.1); }
+        
+        .video-box { width: 100%; background: #000; border-radius: 12px; border: 2px dashed var(--border); position: relative; overflow: hidden; margin-top: 15px; min-height: 150px; display: flex; justify-content: center; align-items: center; }
+        video { width: 100%; height: auto; display: block; }
+        .placeholder-text { position: absolute; color: var(--text-muted); font-size: 14px; pointer-events: none; }
+        .drag-box { position: absolute; display: none; z-index: 50; touch-action: none; }
+        .resize-handle { width: 30px; height: 30px; background: white; position: absolute; bottom: -10px; right: -10px; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.5); z-index: 60;}
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .checkbox-wrapper { display: flex; align-items: center; background: #020617; padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
+        .checkbox-wrapper input { width: auto; margin-right: 10px; accent-color: var(--accent); }
+        .switch-group { display: flex; justify-content: space-between; align-items: center; background: #020617; padding: 15px; border-radius: 10px; border: 1px solid var(--accent); }
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(24px); }
+        #result-section { display: none; border-color: var(--success); }
+        #loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 9999; text-align: center; padding-top: 35vh; color: var(--accent); font-size: 1.2rem; }
+    </style>
+
+    <script>
+        function switchSource(type) {
+            document.getElementById('src-link').style.display = 'none'; document.getElementById('src-file').style.display = 'none';
+            document.getElementById('btnSrcLink').classList.remove('active'); document.getElementById('btnSrcFile').classList.remove('active');
+            if(type === 'link') { document.getElementById('src-link').style.display = 'block'; document.getElementById('btnSrcLink').classList.add('active'); } 
+            else { document.getElementById('src-file').style.display = 'block'; document.getElementById('btnSrcFile').classList.add('active'); }
+        }
+        function loader(show, msg="Processing...") { 
+            const el = document.getElementById('loader');
+            el.innerHTML = `<div>${msg}</div><div style="font-size:14px; color:#94a3b8; margin-top:10px;">(Do not close this page)</div>`;
+            el.style.display = show ? 'block' : 'none'; 
+        }
+        function statusMsg(text) { const el = document.getElementById('statusMsg'); el.innerText = text; el.style.display = text ? 'block' : 'none'; }
+
+        async function showResult(serverUrl) {
+            loader(true, "📥 Saving to Browser Memory...");
+            try {
+                const response = await fetch(serverUrl);
+                if (!response.ok) throw new Error("File transfer failed.");
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const section = document.getElementById('result-section');
+                const player = document.getElementById('resultVideo');
+                const dlBtn = document.getElementById('downloadBtn');
+                player.src = objectUrl; dlBtn.href = objectUrl; dlBtn.download = "recap_" + new Date().getTime() + ".mp4";
+                section.style.display = 'block'; section.scrollIntoView({behavior: "smooth"});
+                statusMsg("✅ Video Ready!");
+            } catch (e) { alert("Error: " + e); } finally { loader(false); }
+        }
+
+        async function downloadVideo() {
+            const u = document.getElementById('videoUrl').value; if(!u) return alert("Enter URL");
+            statusMsg("Downloading Video..."); loader(true, "Downloading...");
+            try {
+                const res = await fetch('/download-video', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:u})});
+                handleRes(await res.json());
+            } catch(e) { alert("Error: " + e); } loader(false);
+        }
+
+        async function uploadVideoFile() {
+            const f = document.getElementById('videoFileInput').files[0]; if(!f) return alert("Select File");
+            const fd = new FormData(); fd.append('video_file', f);
+            statusMsg("Uploading..."); loader(true, "Uploading...");
+            try {
+                const res = await fetch('/upload-video', {method:'POST', body:fd});
+                handleRes(await res.json());
+            } catch(e) { alert("Error"); } loader(false);
+        }
+
+        function handleRes(d) {
+            if(d.status === 'success') {
+                document.getElementById('videoFilename').value = d.filename;
+                document.querySelector('.placeholder-text').style.display = 'none';
+                const old = document.getElementById('mainVideo'); if(old) old.remove();
+                const v = document.createElement('video');
+                v.id = 'mainVideo'; v.src = d.path; v.controls = true; v.style.width = '100%';
+                document.getElementById('videoContainer').prepend(v);
+                
+                v.onloadedmetadata = () => {
+                    updateCoords('blurBox'); updateCoords('logoBox');
+                };
+                
+                statusMsg("✅ Video Uploaded! Checking AI...");
+                if(!d.translated_text) reloadTranslation(); else document.querySelector('textarea[name="ai_text"]').value = d.translated_text;
+            } else { alert(d.message); }
+        }
+
+        async function reloadTranslation() {
+            const fname = document.getElementById('videoFilename').value;
+            if(!fname) return;
+            const btn = document.getElementById('btnReloadAI'); btn.innerHTML = "⏳ Fixing..."; btn.disabled = true;
+            document.querySelector('textarea[name="ai_text"]').value = "⏳ AI Analyzing...";
+            try {
+                const fd = new FormData(); fd.append('filename', fname);
+                const res = await fetch('/re-analyze', {method:'POST', body:fd});
+                const d = await res.json();
+                document.querySelector('textarea[name="ai_text"]').value = d.translated_text || d.message;
+            } catch(e) { alert("Connection Error"); }
+            btn.innerHTML = "↻ Retry AI"; btn.disabled = false;
+        }
+
+        async function startProcessing() {
+            if(!document.getElementById('videoFilename').value) return alert("No Video!");
+            document.getElementById('result-section').style.display = 'none'; loader(true, "Joining Queue...");
+            const fd = new FormData(document.getElementById('processForm'));
+            try {
+                const res = await fetch('/process', {method:'POST', body:fd});
+                const d = await res.json();
+                if(d.status === 'queued') checkStatus(d.job_id); else { alert(d.message); loader(false); }
+            } catch(e) { alert("Error"); loader(false); }
+        }
+
+        function checkStatus(jobId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch('/status/' + jobId);
+                    const d = await res.json();
+                    if(d.status === 'success') { clearInterval(interval); loader(false); showResult(d.url); }
+                    else if(d.status === 'failed') { clearInterval(interval); loader(false); alert("Failed: " + d.message); }
+                } catch(e) {}
+            }, 3000); 
+        }
+
+        function toggleBox(id, show) {
+            const el = document.getElementById(id); if(el) { el.style.display = show ? 'block' : 'none'; if(show) updateCoords(id); }
+        }
+        function loadLogo(e) {
+            if(e.target.files[0]) {
+                const r = new FileReader();
+                r.onload = function(ev) { document.getElementById('previewLogo').src=ev.target.result; toggleBox('logoBox', true); };
+                r.readAsDataURL(e.target.files[0]);
+            }
+        }
+        
+        function updateCoords(id) {
+            const v = document.getElementById('mainVideo'); 
+            const box = document.getElementById(id);
+            if(!v || !box || v.videoWidth === 0) return;
+            
+            const vr = v.getBoundingClientRect(); 
+            const br = box.getBoundingClientRect(); 
+            
+            const scaleX = v.videoWidth / vr.width;
+            const scaleY = v.videoHeight / vr.height;
+            
+            const x = Math.round((br.left - vr.left) * scaleX);
+            const y = Math.round((br.top - vr.top) * scaleY);
+            const w = Math.round(br.width * scaleX);
+            const h = Math.round(br.height * scaleY);
+
+            if(id==='blurBox') { 
+                document.getElementById('blur_x').value=x; document.getElementById('blur_y').value=y; 
+                document.getElementById('blur_w').value=w; document.getElementById('blur_h').value=h; 
+            } else { 
+                document.getElementById('logo_x').value=x; document.getElementById('logo_y').value=y; 
+                document.getElementById('logo_w').value=w; document.getElementById('logo_h').value=h; 
+            }
+        }
+
+        function makeInteractive(id) {
+            const box = document.getElementById(id);
+            const handle = box.querySelector('.resize-handle');
+            if(!box || !handle) return;
+            let isDrag=false, isResize=false, startX, startY, sl, st, sw, sh;
+            const start = (e) => {
+                if(e.target === handle) return;
+                isDrag = true; const p = e.type.includes('mouse') ? e : e.touches[0];
+                startX = p.clientX; startY = p.clientY; sl = box.offsetLeft; st = box.offsetTop;
+            };
+            const resizeStart = (e) => {
+                e.stopPropagation(); isResize = true; const p = e.type.includes('mouse') ? e : e.touches[0];
+                startX = p.clientX; startY = p.clientY; sw = box.offsetWidth; sh = box.offsetHeight;
+            };
+            const move = (e) => {
+                const c = document.getElementById('videoContainer');
+                if(!isDrag && !isResize) return;
+                if(e.cancelable) e.preventDefault();
+                const p = e.type.includes('mouse') ? e : e.touches[0];
+                if(isDrag) {
+                    let nl = sl + (p.clientX - startX); let nt = st + (p.clientY - startY);
+                    nl = Math.max(0, Math.min(nl, c.clientWidth - box.offsetWidth));
+                    nt = Math.max(0, Math.min(nt, c.clientHeight - box.offsetHeight));
+                    box.style.left = nl + 'px'; box.style.top = nt + 'px'; updateCoords(id);
+                }
+                if(isResize) {
+                    let nw = sw + (p.clientX - startX); let nh = sh + (p.clientY - startY);
+                    nw = Math.max(30, nw); nh = Math.max(30, nh);
+                    box.style.width = nw + 'px'; box.style.height = nh + 'px'; updateCoords(id);
+                }
+            };
+            const end = () => { isDrag = false; isResize = false; };
+            box.addEventListener('mousedown', start); box.addEventListener('touchstart', start, {passive: false});
+            handle.addEventListener('mousedown', resizeStart); handle.addEventListener('touchstart', resizeStart, {passive: false});
+            window.addEventListener('mousemove', move); window.addEventListener('touchmove', move, {passive: false});
+            window.addEventListener('mouseup', end); window.addEventListener('touchend', end);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            makeInteractive('blurBox'); makeInteractive('logoBox');
+            window.addEventListener('resize', () => { updateCoords('blurBox'); updateCoords('logoBox'); });
+        });
+    </script>
+</head>
+<body>
+<div id="loader">Processing...</div>
+<div class="container">
+    <h2>Recap Maker</h2>
+    <span class="user-badge">User Session: {{ user_id }}</span>
+
+    <div id="result-section" class="card" style="border: 2px solid var(--success);">
+        <span class="card-title" style="color:var(--success);">✅ Result Video</span>
+        <div class="video-box" style="border-color:var(--success);">
+            <video id="resultVideo" controls style="width:100%; height:auto;"></video>
+        </div>
+        <br>
+        <a id="downloadBtn" href="#" download class="btn btn-success" style="color:white; font-weight:bold;">⬇️ Download Video</a>
+    </div>
+
+    <div id="view-editor">
+        <div class="card">
+            <span class="card-title">Video Source</span>
+            <div class="grid-2">
+                <button id="btnSrcLink" class="btn btn-outline active" onclick="switchSource('link')">🔗 URL Link</button>
+                <button id="btnSrcFile" class="btn btn-outline" onclick="switchSource('file')">📂 Upload File</button>
+            </div>
+            <div id="src-link" style="margin-top:15px;">
+                <input type="text" id="videoUrl" placeholder="https://youtube.com/...">
+                <button onclick="downloadVideo()" class="btn btn-primary">⬇️ Fetch Video</button>
+            </div>
+            <div id="src-file" style="margin-top:15px; display:none;">
+                <input type="file" id="videoFileInput" style="margin-bottom:10px;">
+                <button onclick="uploadVideoFile()" class="btn btn-primary">⬆️ Upload Video</button>
+            </div>
+            <p id="statusMsg" style="text-align:center; color:var(--accent); margin-top:10px; display:none;"></p>
+            <div class="video-box" id="videoContainer">
+                <span class="placeholder-text">Video Preview Area</span>
+                <div id="blurBox" class="drag-box" style="width:100px; height:50px; background:rgba(239, 68, 68, 0.4); border:2px solid var(--danger);"><div class="resize-handle"></div></div>
+                <div id="logoBox" class="drag-box" style="width:80px; height:80px; border:2px dashed var(--success);"><img id="previewLogo" style="width:100%; height:100%; object-fit:contain; pointer-events:none;"><div class="resize-handle"></div></div>
+            </div>
+        </div>
+
+        <form id="processForm">
+            <input type="hidden" name="video_filename" id="videoFilename">
+            <input type="hidden" name="blur_x" id="blur_x" value="0"><input type="hidden" name="blur_y" id="blur_y" value="0">
+            <input type="hidden" name="blur_w" id="blur_w" value="0"><input type="hidden" name="blur_h" id="blur_h" value="0">
+            <input type="hidden" name="logo_x" id="logo_x" value="0"><input type="hidden" name="logo_y" id="logo_y" value="0">
+            <input type="hidden" name="logo_w" id="logo_w" value="100"><input type="hidden" name="logo_h" id="logo_h" value="100">
+
+            <div class="card">
+                <span class="card-title">🛡️ Copyright Bypass Tools</span>
+                <div class="grid-2">
+                    <label class="checkbox-wrapper"><input type="checkbox" name="bypass_flip"> Flip</label>
+                    <label class="checkbox-wrapper"><input type="checkbox" name="bypass_zoom"> Zoom</label>
+                    <label class="checkbox-wrapper"><input type="checkbox" name="bypass_speed"> Speed</label>
+                    <label class="checkbox-wrapper"><input type="checkbox" name="bypass_color"> Color</label>
+                </div>
+            </div>
+
+            <div class="switch-group">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:20px;">💰</span>
+                    <div><strong style="color:white;">Monezlation Mode</strong><small style="color:var(--text-muted); display:block;">Sync & Loop (1:10 min)</small></div>
+                </div>
+                <label class="switch"><input type="checkbox" name="monezlation"><span class="slider"></span></label>
+            </div>
+            <br>
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span class="card-title" style="margin:0;">AI Dubbing</span>
+                    <button type="button" id="btnReloadAI" onclick="reloadTranslation()" class="btn btn-outline" style="padding:6px 12px; font-size:12px; width:auto;">↻ Retry AI</button>
+                </div>
+                <textarea name="ai_text" rows="4" placeholder="Translated Burmese script..."></textarea>
+                <select name="voice_gender"><option value="male">Male Voice</option><option value="female">Female Voice</option></select>
+            </div>
+            <div class="card">
+                <span class="card-title">Overlays</span>
+                <div style="position:relative; margin-bottom:10px;">
+                    <label style="color:var(--text-muted); font-size:12px; display:block;">Text Watermark</label>
+                    <input type="text" name="text_watermark" value="Shine Movie Recap" readonly style="color:var(--accent); background:#1e293b; font-weight:bold;">
+                    <span style="position:absolute; right:15px; top:35px; font-size:12px; color:var(--accent);">🔒 LOCKED</span>
+                </div>
+                <label class="checkbox-wrapper" style="margin-bottom:10px;"><input type="checkbox" onclick="toggleBox('blurBox', this.checked)" name="blur_enabled"> Enable Blur Mask (Red Box)</label>
+                <label style="color:var(--text-muted); font-size:14px;">Logo Overlay:</label>
+                <input type="file" name="logo_file" accept="image/*" onchange="loadLogo(event)">
+            </div>
+            <button type="button" onclick="startProcessing()" class="btn btn-primary">🚀 START PROCESSING</button>
+        </form>
+    </div>
+</div>
+</body>
+</html>
