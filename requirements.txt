@@ -1,0 +1,10 @@
+Flask
+yt-dlp
+ffmpeg-python
+edge-tts
+uuid
+SpeechRecognition
+requests
+groq
+python-dotenv
+google-genai
